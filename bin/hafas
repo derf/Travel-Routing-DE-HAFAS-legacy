@@ -104,6 +104,9 @@ if ( my $err = $status->errstr ) {
 	exit 2;
 }
 
+$status->results;
+exit 0;
+
 for my $d ( $status->results() ) {
 
 	if ( $ignore_late and $d->e_delay ) {
