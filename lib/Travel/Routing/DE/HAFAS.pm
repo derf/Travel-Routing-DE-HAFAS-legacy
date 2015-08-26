@@ -84,7 +84,28 @@ sub results {
 	my ($self) = @_;
 	my $data = $self->{reply};
 
-	say unpack('H4', $data);
+	my ($version, $origin, $destination, $numjourneys, $svcdayptr,
+	$strtableptr, $date, $unk1, $unk2, $unk3, $stationptr, $commentptr,
+	$unk4, $extptr) = unpack('S A14 A14 S L L S S S A8 L L S L', $data);
+
+	my ($hversion, $horigin, $hdestination, $hnumjourneys, $hsvcdayptr,
+	$hstrtableptr, $hdate, $hunk1, $hunk2, $hunk3, $hstationptr, $hcommentptr,
+	$hunk4, $hextptr) = unpack('H4 H28 H28 H4 H8 H8 H4 H4 H4 H16 H8 H8 H4 H8', $data);
+
+	printf("Version: %d (%s)\n", $version, $hversion);
+	printf("Origin: (%s)\n", $horigin);
+	printf("Dest: (%s)\n", $hdestination);
+	printf("num journeys: %d (%s)\n", $numjourneys, $hnumjourneys);
+	printf("service days offset: 0x%x (%s)\n", $svcdayptr, $hsvcdayptr);
+	printf("string table offset: 0x%x (%s)\n", $strtableptr, $hstrtableptr);
+	printf("date: %d (%s)\n", $date, $hdate);
+	printf("unk1: %d (%s)\n", $unk1, $hunk1);
+	printf("unk2: %d (%s)\n", $unk2, $hunk2);
+	printf("unk3: (%s)\n", $hunk3);
+	printf("stations offset: 0x%x (%s)\n", $stationptr, $hstationptr);
+	printf("comments offset: 0x%x (%s)\n", $commentptr, $hcommentptr);
+	printf("unk4: %d (%s)\n", $unk4, $hunk4);
+	printf("extension offset: 0x%x (%s)\n", $extptr, $hextptr);
 
 #	say $self->{reply};
 }
