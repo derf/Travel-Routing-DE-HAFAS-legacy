@@ -29,7 +29,7 @@ sub new {
 
 	my $lang = $conf{language} // 'd';
 
-	if ( not $conf{station} ) {
+	if ( not $conf{from} or not $conf{to} ) {
 		confess('You need to specify a station');
 	}
 
@@ -59,18 +59,20 @@ sub new {
 	bless( $ref, $obj );
 	$reply
 	  = $ua->post( "http://reiseauskunft.bahn.de/bin/query.exe/${lang}n"
-	    . '?start=Suchen&REQ0JourneyStopsS0ID=A%3D1%40L%3D8000098'
-	    . '&REQ0JourneyStopsZ0ID=A%3D1%40L%3D8000207&REQ0HafasSearchForw=1'
-	    . '&REQ0JourneyDate=26.08.15&REQ0JourneyTime=12%3A05'
-	    . '&REQ0JourneyProduct_prod_list_1=11111111110000&h2g-direct=11'
-	    . '&clientType=ANDROID' );
+		  . '?start=Suchen&S='
+		  . $conf{from} . '&Z='
+		  . $conf{to}
+		  . '&REQ0HafasSearchForw=1'
+		  . '&REQ0JourneyDate=26.08.15&REQ0JourneyTime=12%3A05'
+		  . '&REQ0JourneyProduct_prod_list_1=11111111110000&h2g-direct=11'
+		  . '&clientType=ANDROID' );
 
 	if ( $reply->is_error ) {
 		$ref->{errstr} = $reply->status_line;
 		return $ref;
 	}
 	$ref->{raw_reply} = $reply->content;
-	gunzip(\$ref->{raw_reply}, \$ref->{reply});
+	gunzip( \$ref->{raw_reply}, \$ref->{reply} );
 	return $ref;
 }
 
@@ -81,56 +83,86 @@ sub errstr {
 }
 
 sub extract_str {
-	my ($self, $ptr) = @_;
+	my ( $self, $ptr ) = @_;
 
 	$ptr += $self->{offset}{strtable};
 
-	return unpack('x' . $ptr . 'Z*', $self->{reply});
+	return unpack( 'x' . $ptr . 'Z*', $self->{reply} );
+}
+
+sub parse_comments {
+	my ( $self, $com_offset ) = @_;
+
+	my $num_comments
+	  = unpack( 'x' . ( $self->{offset}{comments} + $com_offset ) . 'S',
+		$self->{reply} );
+	my @comment_ptrs = unpack(
+		'x'
+		  . ( $self->{offset}{comments} + $com_offset + 2 )
+		  . 'S' x $num_comments,
+		$self->{reply}
+	);
+	for my $ptr (@comment_ptrs) {
+		printf( "comment %s\n", $self->extract_str($ptr) );
+	}
 }
 
 sub parse_location {
-	my ($self, $data) = @_;
+	my ( $self, $data ) = @_;
 
-	my ($name_offset, $unk, $type, $lon, $lat) = unpack('S S S L L', $data);
-	printf("Location: pos %d, unk %d, type %d, lon/lat %f %f\n",
-		$name_offset, $unk, $type, $lon / 1_000_000, $lat / 1_000_000);
+	my ( $name_offset, $unk, $type, $lon, $lat ) = unpack( 'S S S L L', $data );
+	printf(
+		"Location: pos %d, unk %d, type %d, lon/lat %f %f\n",
+		$name_offset, $unk, $type,
+		$lon / 1_000_000,
+		$lat / 1_000_000
+	);
 
-	printf("Location name: %s\n", $self->extract_str($name_offset));
-	return ($name_offset, $type, $lon, $lat);
-}
-
-sub parse_journey_header {
-	my ($self, $num) = @_;
-
-	my $ptr = 0x4a + (12 * $num);
-
-	my ($service_days_offset, $parts_offset, $num_parts, $num_changes, $unk)
-	= unpack('x'.$ptr. 'S L S S S', $self->{reply});
-
-	printf("Journey %d: off 0x%x/0x%x, %d parts, %d changes, unk %d\n",
-		$num+1, $service_days_offset, $parts_offset, $num_parts, $num_changes, $unk);
-
-	$self->{offset}{journeys}[$num]{service_days} = $self->{offset}{servicedays} + $service_days_offset;
-	$self->{offset}{journeys}[$num]{parts} = $parts_offset;
-	$self->{journeys}[$num]{num_parts} = $num_parts;
-	$self->{journeys}[$num]{num_changes} = $num_changes;
+	printf( "Location name: %s\n", $self->extract_str($name_offset) );
+	return ( $name_offset, $type, $lon, $lat );
 }
 
 sub parse_journey {
-	my ($self, $num) = @_;
+	my ( $self, $num ) = @_;
+
+	my $ptr = 0x4a + ( 12 * $num );
+
+	my ( $service_days_offset, $parts_offset, $num_parts, $num_changes, $unk )
+	  = unpack( 'x' . $ptr . 'S L S S S', $self->{reply} );
+
+	printf( "Journey %d: off 0x%x/0x%x, %d parts, %d changes, unk %d\n",
+		$num + 1, $service_days_offset, $parts_offset, $num_parts,
+		$num_changes, $unk );
+
+	$self->{offset}{journeys}[$num]{service_days}
+	  = $self->{offset}{servicedays} + $service_days_offset;
+	$self->{offset}{journeys}[$num]{parts} = $parts_offset + 0x4a;
+	$self->{journeys}[$num]{num_parts}     = $num_parts;
+	$self->{journeys}[$num]{num_changes}   = $num_changes;
 
 	my $svcd_ptr = $self->{offset}{journeys}[$num]{service_days};
-	my $desc_ptr = unpack('x' . $svcd_ptr . 'S', $self->{reply});
-	printf("Service days: %s\n", $self->extract_str($desc_ptr));
+	my $desc_ptr = unpack( 'x' . $svcd_ptr . 'S', $self->{reply} );
+	printf( "Service days: %s\n", $self->extract_str($desc_ptr) );
 
-	for my $i (0 .. $self->{journeys}[$num]{num_parts}-1) {
-		my ($dep_time, $dep_station, $arr_time, $arr_station, $type,
-		$line, $dep_platform, $arr_platform, $attrib_ptr, $comments_ptr)
-		= unpack('x'. ($self->{offset}{journeys}[$num]{parts} + (14 * $i))
-		. 'S S S S S S S S S S', $self->{reply});
+	for my $i ( 0 .. $self->{journeys}[$num]{num_parts} - 1 ) {
+		my (
+			$dep_time,   $dep_station, $arr_time,     $arr_station,
+			$type,       $line,        $dep_platform, $arr_platform,
+			$attrib_ptr, $comments_ptr
+		  )
+		  = unpack(
+			'x'
+			  . ( $self->{offset}{journeys}[$num]{parts} + ( 20 * $i ) )
+			  . 'S S S S S S S S S S',
+			$self->{reply}
+		  );
 
-		printf("\n- dep %d\n", $dep_time);
-		printf("- arr %d\n", $arr_time);
+		printf( "\n- dep %d (%s)\n",
+			$dep_time, $self->extract_str($dep_platform) );
+		printf( "- arr %d (%s)\n",
+			$arr_time, $self->extract_str($arr_platform) );
+		printf( "- line %s\n", $self->extract_str($line) );
+		$self->parse_comments($comments_ptr);
 	}
 }
 
@@ -138,44 +170,48 @@ sub results {
 	my ($self) = @_;
 	my $data = $self->{reply};
 
-	my ($version, $origin, $destination, $numjourneys, $svcdayptr,
-	$strtableptr, $date, $unk1, $unk2, $unk3, $stationptr, $commentptr,
-	$unk4, $extptr) = unpack('S A14 A14 S L L S S S A8 L L S L', $data);
+	my (
+		$version,     $origin,     $destination, $numjourneys, $svcdayptr,
+		$strtableptr, $date,       $unk1,        $unk2,        $unk3,
+		$stationptr,  $commentptr, $unk4,        $extptr
+	) = unpack( 'S A14 A14 S L L S S S A8 L L S L', $data );
 
-	my ($hversion, $horigin, $hdestination, $hnumjourneys, $hsvcdayptr,
-	$hstrtableptr, $hdate, $hunk1, $hunk2, $hunk3, $hstationptr, $hcommentptr,
-	$hunk4, $hextptr) = unpack('H4 H28 H28 H4 H8 H8 H4 H4 H4 H16 H8 H8 H4 H8', $data);
+	my (
+		$hversion,   $horigin,      $hdestination, $hnumjourneys,
+		$hsvcdayptr, $hstrtableptr, $hdate,        $hunk1,
+		$hunk2,      $hunk3,        $hstationptr,  $hcommentptr,
+		$hunk4,      $hextptr
+	) = unpack( 'H4 H28 H28 H4 H8 H8 H4 H4 H4 H16 H8 H8 H4 H8', $data );
 
 	$self->{offset}{servicedays} = $svcdayptr;
-	$self->{offset}{strtable} = $strtableptr;
-	$self->{offset}{stations} = $stationptr;
-	$self->{offset}{comments} = $commentptr;
-	$self->{offset}{extensions} = $extptr;
+	$self->{offset}{strtable}    = $strtableptr;
+	$self->{offset}{stations}    = $stationptr;
+	$self->{offset}{comments}    = $commentptr;
+	$self->{offset}{extensions}  = $extptr;
 
-	printf("Version: %d (%s)\n", $version, $hversion);
-	printf("Origin: (%s)\n", $horigin);
+	printf( "Version: %d (%s)\n", $version, $hversion );
+	printf( "Origin: (%s)\n", $horigin );
 	my ($orig_name_pos) = $self->parse_location($origin);
-	printf("Dest: (%s)\n", $hdestination);
+	printf( "Dest: (%s)\n", $hdestination );
 	my ($dest_name_pos) = $self->parse_location($destination);
-	printf("num journeys: %d (%s)\n", $numjourneys, $hnumjourneys);
-	printf("service days offset: 0x%x (%s)\n", $svcdayptr, $hsvcdayptr);
-	printf("string table offset: 0x%x (%s)\n", $strtableptr, $hstrtableptr);
-	printf("date: %d (%s)\n", $date, $hdate);
-	printf("unk1: %d (%s)\n", $unk1, $hunk1);
-	printf("unk2: %d (%s)\n", $unk2, $hunk2);
-	printf("unk3: (%s)\n", $hunk3);
-	printf("stations offset: 0x%x (%s)\n", $stationptr, $hstationptr);
-	printf("comments offset: 0x%x (%s)\n", $commentptr, $hcommentptr);
-	printf("unk4: %d (%s)\n", $unk4, $hunk4);
-	printf("extension offset: 0x%x (%s)\n", $extptr, $hextptr);
+	printf( "num journeys: %d (%s)\n",          $numjourneys, $hnumjourneys );
+	printf( "service days offset: 0x%x (%s)\n", $svcdayptr,   $hsvcdayptr );
+	printf( "string table offset: 0x%x (%s)\n", $strtableptr, $hstrtableptr );
+	printf( "date: %d (%s)\n",                  $date,        $hdate );
+	printf( "unk1: %d (%s)\n",                  $unk1,        $hunk1 );
+	printf( "unk2: %d (%s)\n",                  $unk2,        $hunk2 );
+	printf( "unk3: (%s)\n",                     $hunk3 );
+	printf( "stations offset: 0x%x (%s)\n",     $stationptr,  $hstationptr );
+	printf( "comments offset: 0x%x (%s)\n",     $commentptr,  $hcommentptr );
+	printf( "unk4: %d (%s)\n",                  $unk4,        $hunk4 );
+	printf( "extension offset: 0x%x (%s)\n",    $extptr,      $hextptr );
 
-	for my $i (0 .. $numjourneys-1) {
+	for my $i ( 0 .. $numjourneys - 1 ) {
 		print "\n";
-		$self->parse_journey_header($i);
 		$self->parse_journey($i);
 	}
 
-#	say $self->{reply};
+	#	say $self->{reply};
 }
 
 1;

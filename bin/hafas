@@ -42,11 +42,14 @@ for my $type ( split( qr{,}, $types ) ) {
 	}
 }
 
+my ( $from, $to ) = @ARGV;
+
 my $status = Travel::Routing::DE::HAFAS->new(
 	date     => $date,
 	language => $language,
 	mot      => \%train_type,
-	station  => shift || show_help(1),
+	from     => $from,
+	to       => $to,
 	time     => $time,
 	mode     => $arrivals ? 'arr' : 'dep',
 );
@@ -54,11 +57,11 @@ my $status = Travel::Routing::DE::HAFAS->new(
 sub show_help {
 	my ($code) = @_;
 
-#	print 'Usage: hafas-m [-d <dd.mm.yyyy>] [-m <motlist>] [-t <time>] '
-#	  . "<station>\n"
-#	  . "See also: man hafas-m\n";
-#
-#	exit $code;
+	#	print 'Usage: hafas-m [-d <dd.mm.yyyy>] [-m <motlist>] [-t <time>] '
+	#	  . "<station>\n"
+	#	  . "See also: man hafas-m\n";
+	#
+	#	exit $code;
 }
 
 sub show_version {
