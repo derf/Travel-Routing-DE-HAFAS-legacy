@@ -63,7 +63,7 @@ sub new {
 		  . $conf{from} . '&Z='
 		  . $conf{to}
 		  . '&REQ0HafasSearchForw=1'
-		  . '&REQ0JourneyDate=28.08.15&REQ0JourneyTime=08%3A05'
+		  . '&REQ0JourneyDate=28.08.15&REQ0JourneyTime=01%3A05'
 		  . '&REQ0JourneyProduct_prod_list_1=11111111110000&h2g-direct=11'
 		  . '&clientType=ANDROID' );
 
@@ -199,6 +199,57 @@ sub parse_location {
 	return ( $name_offset, $type, $lon, $lat );
 }
 
+sub parse_part_details {
+	my ( $self, $detail_ptr, $partno ) = @_;
+
+	my $ptr
+	  = $self->{offset}{details}
+	  + $detail_ptr
+	  + $self->{offset}{part_index}
+	  + ( 16 * $partno );
+
+	my ( $dep_time, $arr_time, $dep_platform_ptr, $arr_platform_ptr,
+		$unk, $stop_idx, $num_stops )
+	  = unpack( 'x' . $ptr . 'S S S S L S S', $self->{reply} );
+
+	printf( "- rt dep %d (%s)\n",
+		$dep_time, $self->extract_str($dep_platform_ptr) );
+	printf( "- rt arr %d (%s)\n",
+		$arr_time, $self->extract_str($arr_platform_ptr) );
+	printf( "- num intermediate stops %d (first %d)\n", $num_stops, $stop_idx );
+
+	for my $i ( 0 .. $num_stops - 1 ) {
+		$self->parse_stop( $stop_idx, $i );
+	}
+}
+
+sub parse_stop {
+	my ( $self, $stop_idx, $num_stop ) = @_;
+	my $ptr
+	  = $self->{offset}{details}
+	  + $self->{offset}{stop_index}
+	  + ( 26 * ( $stop_idx + $num_stop ) );
+
+	my (
+		$s_dep_time,         $s_arr_time,          $s_dep_platform_ptr,
+		$s_arr_platform_ptr, $s_unk,               $rt_dep_time,
+		$rt_arr_time,        $rt_dep_platform_ptr, $rt_arr_platform_ptr,
+		$rt_unk,             $station_ptr
+	) = unpack( 'x' . $ptr . 'S S S S L S S S S L S', $self->{reply} );
+
+	$self->parse_station($station_ptr);
+	printf(
+		"-- sched: arr %d (%s), dep %d (%s), unk %d\n",
+		$s_arr_time, $self->extract_str($s_arr_platform_ptr),
+		$s_dep_time, $self->extract_str($s_dep_platform_ptr), $s_unk
+	);
+	printf(
+		"-- rt: arr %d (%s), dep %d (%s), unk %d\n",
+		$rt_arr_time, $self->extract_str($rt_arr_platform_ptr),
+		$rt_dep_time, $self->extract_str($rt_dep_platform_ptr), $rt_unk
+	);
+}
+
 sub parse_journey {
 	my ( $self, $num ) = @_;
 
@@ -261,6 +312,7 @@ sub parse_journey {
 		printf( "- line %s\n", $self->extract_str($line) );
 		$self->parse_attributes($attrib_ptr);
 		$self->parse_comments($comments_ptr);
+		$self->parse_part_details( $detail_ptr, $i );
 	}
 }
 
