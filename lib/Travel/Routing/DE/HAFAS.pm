@@ -63,7 +63,7 @@ sub new {
 		  . $conf{from} . '&Z='
 		  . $conf{to}
 		  . '&REQ0HafasSearchForw=1'
-		  . '&REQ0JourneyDate=26.08.15&REQ0JourneyTime=12%3A05'
+		  . '&REQ0JourneyDate=28.08.15&REQ0JourneyTime=08%3A05'
 		  . '&REQ0JourneyProduct_prod_list_1=11111111110000&h2g-direct=11'
 		  . '&clientType=ANDROID' );
 
@@ -169,6 +169,21 @@ sub parse_comments {
 	}
 }
 
+sub parse_attributes {
+	my ( $self, $attr_offset ) = @_;
+
+	my $ptr = $self->{offset}{attributes1} + ( 4 * $attr_offset );
+
+	while ( unpack( 'x' . $ptr . 'S', $self->{reply} ) != 0 ) {
+		my ( $key_ptr, $value_ptr )
+		  = unpack( 'x' . $ptr . 'S S', $self->{reply} );
+		printf( "- attr %s: %s\n",
+			$self->extract_str($key_ptr),
+			$self->extract_str($value_ptr) );
+		$ptr += 4;
+	}
+}
+
 sub parse_location {
 	my ( $self, $data ) = @_;
 
@@ -206,6 +221,24 @@ sub parse_journey {
 	my $desc_ptr = unpack( 'x' . $svcd_ptr . 'S', $self->{reply} );
 	printf( "Service days: %s\n", $self->extract_str($desc_ptr) );
 
+	my $detail_ptr = unpack(
+		'x'
+		  . (
+			    $self->{offset}{details}
+			  + $self->{offset}{detail_index}
+			  + ( 2 * $num )
+		  )
+		  . 'S',
+		$self->{reply}
+	);
+	printf( "detail ptr %d\n", $detail_ptr );
+
+	my ( $rts, $delay )
+	  = unpack( 'x' . ( $self->{offset}{details} + $detail_ptr ) . 'S S',
+		$self->{reply} );
+	printf( "rts %d\n",   $rts );
+	printf( "delay %d\n", $delay );
+
 	for my $i ( 0 .. $self->{journeys}[$num]{num_parts} - 1 ) {
 		my (
 			$dep_time,   $dep_station, $arr_time,     $arr_station,
@@ -226,6 +259,7 @@ sub parse_journey {
 			$arr_time, $self->extract_str($arr_platform) );
 		$self->parse_station($arr_station);
 		printf( "- line %s\n", $self->extract_str($line) );
+		$self->parse_attributes($attrib_ptr);
 		$self->parse_comments($comments_ptr);
 	}
 }
