@@ -231,8 +231,9 @@ sub parse_journey {
 	}
 }
 
-sub results {
+sub parse_header {
 	my ($self) = @_;
+
 	my $data = $self->{reply};
 
 	my (
@@ -273,6 +274,13 @@ sub results {
 	printf( "unk4: (%s)\n",                     $hunk4 );
 	printf( "extension offset: 0x%x (%s)\n",    $extptr,      $hextptr );
 
+	return $numjourneys;
+}
+
+sub results {
+	my ($self) = @_;
+
+	my $numjourneys = $self->parse_header;
 	$self->parse_extensions;
 	$self->parse_details;
 
