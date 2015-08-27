@@ -90,6 +90,20 @@ sub extract_str {
 	return unpack( 'x' . $ptr . 'Z*', $self->{reply} );
 }
 
+sub parse_station {
+	my ( $self, $st_offset ) = @_;
+
+	my $ptr = $self->{offset}{stations} + ( 14 * $st_offset );
+
+	my ( $name_ptr, $stopid, $lon, $lat )
+	  = unpack( 'x' . $ptr . 'SLLL', $self->{reply} );
+	my $station_name = $self->extract_str($name_ptr);
+
+	printf( "- name %s\n",     $station_name );
+	printf( "- id %d\n",       $stopid );
+	printf( "- pos %f / %f\n", $lon / 1_000_000, $lat / 1_000_000 );
+}
+
 sub parse_comments {
 	my ( $self, $com_offset ) = @_;
 
@@ -159,8 +173,10 @@ sub parse_journey {
 
 		printf( "\n- dep %d (%s)\n",
 			$dep_time, $self->extract_str($dep_platform) );
+		$self->parse_station($dep_station);
 		printf( "- arr %d (%s)\n",
 			$arr_time, $self->extract_str($arr_platform) );
+		$self->parse_station($arr_station);
 		printf( "- line %s\n", $self->extract_str($line) );
 		$self->parse_comments($comments_ptr);
 	}
