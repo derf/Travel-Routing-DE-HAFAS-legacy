@@ -90,6 +90,33 @@ sub extract_str {
 	return unpack( 'x' . $ptr . 'Z*', $self->{reply} );
 }
 
+sub parse_extensions {
+	my ($self) = @_;
+
+	my (
+		$len,         $unk1,          $seqnr, $reqid_ptr,
+		$details_ptr, $err,           $unk2,  $enc_ptr,
+		$unk_ptr,     $attrib_offset, $attrib_pos
+	  )
+	  = unpack( 'x' . $self->{offset}{extensions} . 'L L S S L S H28 S S S L',
+		$self->{reply} );
+
+	printf( "extlen %d\n",               $len );
+	printf( "unk1 %d\n",                 $unk1 );
+	printf( "seqnr %d\n",                $seqnr );
+	printf( "reqid %s\n",                $self->extract_str($reqid_ptr) );
+	printf( "details_ptr %d\n",          $details_ptr );
+	printf( "error %d\n",                $err );
+	printf( "unk2 %s\n",                 $unk2 );
+	printf( "enc %s\n",                  $self->extract_str($enc_ptr) );
+	printf( "??? %s\n",                  $self->extract_str($unk_ptr) );
+	printf( "attr offset/pos %d / %d\n", $attrib_offset, $attrib_pos );
+
+	$self->{offset}{details}     = $details_ptr;
+	$self->{offset}{attributes1} = $attrib_offset;
+	$self->{offset}{attributes2} = $attrib_pos;
+}
+
 sub parse_station {
 	my ( $self, $st_offset ) = @_;
 
