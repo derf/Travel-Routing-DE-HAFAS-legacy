@@ -190,14 +190,16 @@ sub results {
 		$version,     $origin,     $destination, $numjourneys, $svcdayptr,
 		$strtableptr, $date,       $unk1,        $unk2,        $unk3,
 		$stationptr,  $commentptr, $unk4,        $extptr
-	) = unpack( 'S A14 A14 S L L S S S A8 L L S L', $data );
+	) = unpack( 'S A14 A14 S L L S S S A8 L L A8 L', $data );
 
 	my (
 		$hversion,   $horigin,      $hdestination, $hnumjourneys,
 		$hsvcdayptr, $hstrtableptr, $hdate,        $hunk1,
 		$hunk2,      $hunk3,        $hstationptr,  $hcommentptr,
 		$hunk4,      $hextptr
-	) = unpack( 'H4 H28 H28 H4 H8 H8 H4 H4 H4 H16 H8 H8 H4 H8', $data );
+	) = unpack( 'H4 H28 H28 H4 H8 H8 H4 H4 H4 H16 H8 H8 H16 H8', $data );
+
+	say unpack( 'H' . ( 2 * 0x4a ), $data );
 
 	$self->{offset}{servicedays} = $svcdayptr;
 	$self->{offset}{strtable}    = $strtableptr;
@@ -219,8 +221,10 @@ sub results {
 	printf( "unk3: (%s)\n",                     $hunk3 );
 	printf( "stations offset: 0x%x (%s)\n",     $stationptr,  $hstationptr );
 	printf( "comments offset: 0x%x (%s)\n",     $commentptr,  $hcommentptr );
-	printf( "unk4: %d (%s)\n",                  $unk4,        $hunk4 );
+	printf( "unk4: (%s)\n",                     $hunk4 );
 	printf( "extension offset: 0x%x (%s)\n",    $extptr,      $hextptr );
+
+	$self->parse_extensions;
 
 	for my $i ( 0 .. $numjourneys - 1 ) {
 		print "\n";
