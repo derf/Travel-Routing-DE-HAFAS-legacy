@@ -117,6 +117,28 @@ sub parse_extensions {
 	$self->{offset}{attributes2} = $attrib_pos;
 }
 
+sub parse_details {
+	my ($self) = @_;
+
+	my ( $version, $unk, $detail_index_off, $detail_part_off, $detail_part_size,
+	$stop_size, $stop_off
+	  )
+	  = unpack( 'x' . $self->{offset}{details} . 'S S S S S S S',
+		$self->{reply} );
+
+	printf( "detailhdr version %d\n", $version );
+	printf( "detailhdr unk %d\n",                 $unk );
+	printf( "detailhdr index ptr %d\n", $detail_index_off );
+	printf( "detailhdr part ptr %d\n", $detail_part_off );
+	printf( "detailhdr part size %d\n", $detail_part_size );
+	printf( "detailhdr stop size %d\n", $stop_size );
+	printf( "detailhdr stop ptr %d\n", $stop_off );
+
+	$self->{offset}{detail_index} = $detail_index_off;
+	$self->{offset}{part_index} = $detail_part_off;
+	$self->{offset}{stop_index} = $stop_off;
+}
+
 sub parse_station {
 	my ( $self, $st_offset ) = @_;
 
@@ -252,6 +274,7 @@ sub results {
 	printf( "extension offset: 0x%x (%s)\n",    $extptr,      $hextptr );
 
 	$self->parse_extensions;
+	$self->parse_details;
 
 	for my $i ( 0 .. $numjourneys - 1 ) {
 		print "\n";
