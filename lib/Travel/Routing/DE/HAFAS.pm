@@ -16,8 +16,8 @@ our $VERSION = '0.00';
 
 sub new {
 	my ( $obj, %conf ) = @_;
-	my $date = strftime( '%d.%m.%Y', localtime(time) );
-	my $time = strftime( '%H:%M',    localtime(time) );
+	my $date = $conf{date} // strftime( '%d.%m.%Y', localtime(time) );
+	my $time = $conf{time} // strftime( '%H:%M',    localtime(time) );
 
 	my %lwp_options = %{ $conf{lwp_options} // { timeout => 10 } };
 
@@ -33,28 +33,7 @@ sub new {
 		confess('You need to specify a station');
 	}
 
-	my $ref = {
-		mot_filter => [
-			$conf{mot}->{ice}   // 1,
-			$conf{mot}->{ic_ec} // 1,
-			$conf{mot}->{d}     // 1,
-			$conf{mot}->{nv}    // 1,
-			$conf{mot}->{s}     // 1,
-			$conf{mot}->{bus}   // 0,
-			$conf{mot}->{ferry} // 0,
-			$conf{mot}->{u}     // 0,
-			$conf{mot}->{tram}  // 0,
-		],
-		post => {
-			productsFilter => '11111111111111',
-			input          => $conf{station},
-			date           => $conf{date} || $date,
-			time           => $conf{time} || $time,
-			start          => 'yes',
-			boardType      => $conf{mode} // 'dep',
-			L              => 'vs_java3',
-		},
-	};
+	my $ref = {};
 
 	bless( $ref, $obj );
 	$reply
@@ -63,8 +42,8 @@ sub new {
 		  . $conf{from} . '&Z='
 		  . $conf{to}
 		  . '&REQ0HafasSearchForw=1'
-		  . '&REQ0JourneyDate=28.08.15&REQ0JourneyTime=01%3A05'
-		  . '&REQ0JourneyProduct_prod_list_1=11111111110000&h2g-direct=11'
+		  . "&REQ0JourneyDate=$date&REQ0JourneyTime=$time"
+		  . '&REQ0JourneyProduct_prod_list_1=11111111111111&h2g-direct=11'
 		  . '&clientType=ANDROID' );
 
 	if ( $reply->is_error ) {
