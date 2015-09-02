@@ -61,6 +61,12 @@ sub errstr {
 	return $self->{errstr};
 }
 
+sub extract_at {
+	my ( $self, $pos, $template ) = @_;
+
+	return unpack( 'x' . $pos . $template, $self->{reply} );
+}
+
 sub extract_str {
 	my ( $self, $ptr ) = @_;
 
@@ -77,8 +83,8 @@ sub parse_extensions {
 		$details_ptr, $err,           $unk2,  $enc_ptr,
 		$unk_ptr,     $attrib_offset, $attrib_pos
 	  )
-	  = unpack( 'x' . $self->{offset}{extensions} . 'L L S S L S H28 S S S L',
-		$self->{reply} );
+	  = $self->extract_at( $self->{offset}{extensions},
+		'L L S S L S H28 S S S L' );
 
 	printf( "extlen %d\n",               $len );
 	printf( "unk1 %d\n",                 $unk1 );
@@ -101,8 +107,7 @@ sub parse_details {
 
 	my ( $version, $unk, $detail_index_off, $detail_part_off, $detail_part_size,
 		$stop_size, $stop_off )
-	  = unpack( 'x' . $self->{offset}{details} . 'S S S S S S S',
-		$self->{reply} );
+	  = $self->extract_at( $self->{offset}{details}, 'S S S S S S S' );
 
 	printf( "detailhdr version %d\n",   $version );
 	printf( "detailhdr unk %d\n",       $unk );
@@ -123,7 +128,7 @@ sub parse_station {
 	my $ptr = $self->{offset}{stations} + ( 14 * $st_offset );
 
 	my ( $name_ptr, $stopid, $lon, $lat )
-	  = unpack( 'x' . $ptr . 'SLLL', $self->{reply} );
+	  = $self->extract_at( $ptr, 'S L L L' );
 	my $station_name = $self->extract_str($name_ptr);
 
 	printf( "- name %s\n",     $station_name );
@@ -135,14 +140,10 @@ sub parse_comments {
 	my ( $self, $com_offset ) = @_;
 
 	my $num_comments
-	  = unpack( 'x' . ( $self->{offset}{comments} + $com_offset ) . 'S',
-		$self->{reply} );
-	my @comment_ptrs = unpack(
-		'x'
-		  . ( $self->{offset}{comments} + $com_offset + 2 )
-		  . 'S' x $num_comments,
-		$self->{reply}
-	);
+	  = $self->extract_at( $self->{offset}{comments} + $com_offset, 'S' );
+	my @comment_ptrs
+	  = $self->extract_at( $self->{offset}{comments} + $com_offset + 2,
+		'S' x $num_comments );
 	for my $ptr (@comment_ptrs) {
 		printf( "comment %s\n", $self->extract_str($ptr) );
 	}
@@ -153,9 +154,8 @@ sub parse_attributes {
 
 	my $ptr = $self->{offset}{attributes1} + ( 4 * $attr_offset );
 
-	while ( unpack( 'x' . $ptr . 'S', $self->{reply} ) != 0 ) {
-		my ( $key_ptr, $value_ptr )
-		  = unpack( 'x' . $ptr . 'S S', $self->{reply} );
+	while ( $self->extract_at( $ptr, 'S' ) != 0 ) {
+		my ( $key_ptr, $value_ptr ) = $self->extract_at( $ptr, 'S S' );
 		printf( "- attr %s: %s\n",
 			$self->extract_str($key_ptr),
 			$self->extract_str($value_ptr) );
@@ -189,7 +189,7 @@ sub parse_part_details {
 
 	my ( $dep_time, $arr_time, $dep_platform_ptr, $arr_platform_ptr,
 		$unk, $stop_idx, $num_stops )
-	  = unpack( 'x' . $ptr . 'S S S S L S S', $self->{reply} );
+	  = $self->extract_at( $ptr, 'S S S S L S S' );
 
 	printf( "- rt dep %d (%s)\n",
 		$dep_time, $self->extract_str($dep_platform_ptr) );
@@ -214,7 +214,7 @@ sub parse_stop {
 		$s_arr_platform_ptr, $s_unk,               $rt_dep_time,
 		$rt_arr_time,        $rt_dep_platform_ptr, $rt_arr_platform_ptr,
 		$rt_unk,             $station_ptr
-	) = unpack( 'x' . $ptr . 'S S S S L S S S S L S', $self->{reply} );
+	) = $self->extract_at( $ptr, 'S S S S L S S S S L S' );
 
 	$self->parse_station($station_ptr);
 	printf(
@@ -235,7 +235,7 @@ sub parse_journey {
 	my $ptr = 0x4a + ( 12 * $num );
 
 	my ( $service_days_offset, $parts_offset, $num_parts, $num_changes, $unk )
-	  = unpack( 'x' . $ptr . 'S L S S S', $self->{reply} );
+	  = $self->extract_at( $ptr, 'S L S S S' );
 
 	printf( "Journey %d: off 0x%x/0x%x, %d parts, %d changes, unk %d\n",
 		$num + 1, $service_days_offset, $parts_offset, $num_parts,
@@ -248,24 +248,17 @@ sub parse_journey {
 	$self->{journeys}[$num]{num_changes}   = $num_changes;
 
 	my $svcd_ptr = $self->{offset}{journeys}[$num]{service_days};
-	my $desc_ptr = unpack( 'x' . $svcd_ptr . 'S', $self->{reply} );
+	my $desc_ptr = $self->extract_at( $svcd_ptr, 'S' );
 	printf( "Service days: %s\n", $self->extract_str($desc_ptr) );
 
-	my $detail_ptr = unpack(
-		'x'
-		  . (
-			    $self->{offset}{details}
-			  + $self->{offset}{detail_index}
-			  + ( 2 * $num )
-		  )
-		  . 'S',
-		$self->{reply}
+	my $detail_ptr = $self->extract_at(
+		$self->{offset}{details} + $self->{offset}{detail_index} + ( 2 * $num ),
+		'S'
 	);
 	printf( "detail ptr %d\n", $detail_ptr );
 
 	my ( $rts, $delay )
-	  = unpack( 'x' . ( $self->{offset}{details} + $detail_ptr ) . 'S S',
-		$self->{reply} );
+	  = $self->extract_at( $self->{offset}{details} + $detail_ptr, 'S S' );
 	printf( "rts %d\n",   $rts );
 	printf( "delay %d\n", $delay );
 
@@ -275,12 +268,9 @@ sub parse_journey {
 			$type,       $line,        $dep_platform, $arr_platform,
 			$attrib_ptr, $comments_ptr
 		  )
-		  = unpack(
-			'x'
-			  . ( $self->{offset}{journeys}[$num]{parts} + ( 20 * $i ) )
-			  . 'S S S S S S S S S S',
-			$self->{reply}
-		  );
+		  = $self->extract_at(
+			$self->{offset}{journeys}[$num]{parts} + ( 20 * $i ),
+			'S S S S S S S S S S' );
 
 		printf( "\n- dep %d (%s)\n",
 			$dep_time, $self->extract_str($dep_platform) );
