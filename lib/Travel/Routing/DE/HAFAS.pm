@@ -105,9 +105,11 @@ sub parse_extensions {
 sub parse_details {
 	my ($self) = @_;
 
+	my $detail_ptr = $self->{offset}{details};
+
 	my ( $version, $unk, $detail_index_off, $detail_part_off, $detail_part_size,
 		$stop_size, $stop_off )
-	  = $self->extract_at( $self->{offset}{details}, 'S S S S S S S' );
+	  = $self->extract_at( $detail_ptr, 'S S S S S S S' );
 
 	printf( "detailhdr version %d\n",   $version );
 	printf( "detailhdr unk %d\n",       $unk );
@@ -117,9 +119,9 @@ sub parse_details {
 	printf( "detailhdr stop size %d\n", $stop_size );
 	printf( "detailhdr stop ptr %d\n",  $stop_off );
 
-	$self->{offset}{detail_index} = $detail_index_off;
-	$self->{offset}{part_index}   = $detail_part_off;
-	$self->{offset}{stop_index}   = $stop_off;
+	$self->{offset}{detail_index} = $detail_ptr + $detail_index_off;
+	$self->{offset}{part_index}   = $detail_ptr + $detail_part_off;
+	$self->{offset}{stop_index}   = $detail_ptr + $stop_off;
 }
 
 sub parse_station {
@@ -181,11 +183,7 @@ sub parse_location {
 sub parse_part_details {
 	my ( $self, $detail_ptr, $partno ) = @_;
 
-	my $ptr
-	  = $self->{offset}{details}
-	  + $detail_ptr
-	  + $self->{offset}{part_index}
-	  + ( 16 * $partno );
+	my $ptr = $self->{offset}{part_index} + $detail_ptr + ( 16 * $partno );
 
 	my ( $dep_time, $arr_time, $dep_platform_ptr, $arr_platform_ptr,
 		$unk, $stop_idx, $num_stops )
@@ -204,10 +202,7 @@ sub parse_part_details {
 
 sub parse_stop {
 	my ( $self, $stop_idx, $num_stop ) = @_;
-	my $ptr
-	  = $self->{offset}{details}
-	  + $self->{offset}{stop_index}
-	  + ( 26 * ( $stop_idx + $num_stop ) );
+	my $ptr = $self->{offset}{stop_index} + ( 26 * ( $stop_idx + $num_stop ) );
 
 	my (
 		$s_dep_time,         $s_arr_time,          $s_dep_platform_ptr,
@@ -251,10 +246,8 @@ sub parse_journey {
 	my $desc_ptr = $self->extract_at( $svcd_ptr, 'S' );
 	printf( "Service days: %s\n", $self->extract_str($desc_ptr) );
 
-	my $detail_ptr = $self->extract_at(
-		$self->{offset}{details} + $self->{offset}{detail_index} + ( 2 * $num ),
-		'S'
-	);
+	my $detail_ptr
+	  = $self->extract_at( $self->{offset}{detail_index} + ( 2 * $num ), 'S' );
 	printf( "detail ptr %d\n", $detail_ptr );
 
 	my ( $rts, $delay )
