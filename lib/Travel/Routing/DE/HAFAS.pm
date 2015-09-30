@@ -303,6 +303,7 @@ sub parse_header {
 	$self->{offset}{stations}    = $stationptr;
 	$self->{offset}{comments}    = $commentptr;
 	$self->{offset}{extensions}  = $extptr;
+	$self->{num_journeys}        = $numjourneys;
 
 	printf( "Version: %d (%s)\n", $version, $hversion );
 	printf( "Origin: (%s)\n", $horigin );
@@ -321,17 +322,17 @@ sub parse_header {
 	printf( "unk4: (%s)\n",                     $hunk4 );
 	printf( "extension offset: 0x%x (%s)\n",    $extptr,      $hextptr );
 
-	return $numjourneys;
+	return;
 }
 
 sub results {
 	my ($self) = @_;
 
-	my $numjourneys = $self->parse_header;
+	$self->parse_header;
 	$self->parse_extensions;
 	$self->parse_details;
 
-	for my $i ( 0 .. $numjourneys - 1 ) {
+	for my $i ( 0 .. $self->{num_journeys} - 1 ) {
 		print "\n";
 		$self->parse_journey($i);
 	}
