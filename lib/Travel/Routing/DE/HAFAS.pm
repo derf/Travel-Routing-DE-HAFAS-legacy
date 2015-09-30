@@ -9,7 +9,8 @@ no if $] >= 5.018, warnings => "experimental::smartmatch";
 use Carp qw(confess);
 use LWP::UserAgent;
 use POSIX qw(strftime);
-use Travel::Routing::DE::HAFAS::Result;
+use Travel::Routing::DE::HAFAS::Route;
+use Travel::Routing::DE::HAFAS::Route::Part;
 use IO::Uncompress::Gunzip qw(gunzip);
 
 our $VERSION = '0.00';
@@ -136,6 +137,8 @@ sub parse_station {
 	printf( "- name %s\n",     $station_name );
 	printf( "- id %d\n",       $stopid );
 	printf( "- pos %f / %f\n", $lon / 1_000_000, $lat / 1_000_000 );
+
+	return ( $station_name, $stopid, $lat / 1_000_000, $lon / 1_000_000 );
 }
 
 sub parse_comments {
@@ -227,6 +230,7 @@ sub parse_stop {
 sub parse_journey {
 	my ( $self, $num ) = @_;
 
+	my @route_parts;
 	my $ptr = 0x4a + ( 12 * $num );
 
 	my ( $service_days_offset, $parts_offset, $num_parts, $num_changes, $unk )
@@ -242,9 +246,10 @@ sub parse_journey {
 	$self->{journeys}[$num]{num_parts}     = $num_parts;
 	$self->{journeys}[$num]{num_changes}   = $num_changes;
 
-	my $svcd_ptr = $self->{offset}{journeys}[$num]{service_days};
-	my $desc_ptr = $self->extract_at( $svcd_ptr, 'S' );
-	printf( "Service days: %s\n", $self->extract_str($desc_ptr) );
+	my $svcd_ptr     = $self->{offset}{journeys}[$num]{service_days};
+	my $desc_ptr     = $self->extract_at( $svcd_ptr, 'S' );
+	my $service_days = $self->extract_str($desc_ptr);
+	printf( "Service days: %s\n", $service_days );
 
 	my $detail_ptr
 	  = $self->extract_at( $self->{offset}{detail_index} + ( 2 * $num ), 'S' );
@@ -252,7 +257,7 @@ sub parse_journey {
 
 	my ( $rts, $delay )
 	  = $self->extract_at( $self->{offset}{details} + $detail_ptr, 'S S' );
-	printf( "rts %d\n",   $rts );
+	printf( "rts %d\n",   $rts );     # 2 == cancelled
 	printf( "delay %d\n", $delay );
 
 	for my $i ( 0 .. $self->{journeys}[$num]{num_parts} - 1 ) {
@@ -265,17 +270,44 @@ sub parse_journey {
 			$self->{offset}{journeys}[$num]{parts} + ( 20 * $i ),
 			'S S S S S S S S S S' );
 
-		printf( "\n- dep %d (%s)\n",
-			$dep_time, $self->extract_str($dep_platform) );
-		$self->parse_station($dep_station);
-		printf( "- arr %d (%s)\n",
-			$arr_time, $self->extract_str($arr_platform) );
-		$self->parse_station($arr_station);
-		printf( "- line %s\n", $self->extract_str($line) );
-		$self->parse_attributes($attrib_ptr);
-		$self->parse_comments($comments_ptr);
-		$self->parse_part_details( $detail_ptr, $i );
+		$dep_platform = $self->extract_str($dep_platform);
+		$arr_platform = $self->extract_str($arr_platform);
+		$line         = $self->extract_str($line);
+
+		my %part = (
+			dep_time     => $dep_time,
+			dep_platform => $dep_platform,
+			arr_time     => $arr_time,
+			arr_platform => $arr_platform,
+			line         => $line,
+			type         => $type,
+		);
+
+		printf( "\n- dep %d (%s)\n", $dep_time, $dep_platform );
+		@part{qw{dep_stop dep_stopid dep_lat dep_lon}}
+		  = $self->parse_station($dep_station);
+		printf( "- arr %d (%s)\n", $arr_time, $arr_platform );
+		@part{qw{arr_stop arr_stopid arr_lat arr_lon}}
+		  = $self->parse_station($arr_station);
+		printf( "- line %s\n", $line );
+		$self->parse_attributes( $attrib_ptr, \%part );
+		$self->parse_comments( $comments_ptr, \%part );
+		$self->parse_part_details( $detail_ptr, $i, \%part );
+
+		push( @route_parts, \%part );
 	}
+
+	push(
+		@{ $self->{results} },
+		Travel::Routing::DE::HAFAS::Route->new(
+			{
+				delay           => $delay,
+				realtime_status => $rts,
+				service_days    => $service_days,
+			},
+			@route_parts,
+		)
+	);
 }
 
 sub parse_header {
