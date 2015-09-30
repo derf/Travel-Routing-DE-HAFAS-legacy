@@ -142,7 +142,7 @@ sub parse_station {
 }
 
 sub parse_comments {
-	my ( $self, $com_offset ) = @_;
+	my ( $self, $com_offset, $part_ref ) = @_;
 
 	my $num_comments
 	  = $self->extract_at( $self->{offset}{comments} + $com_offset, 'S' );
@@ -150,20 +150,24 @@ sub parse_comments {
 	  = $self->extract_at( $self->{offset}{comments} + $com_offset + 2,
 		'S' x $num_comments );
 	for my $ptr (@comment_ptrs) {
+		push( @{ $part_ref->{comments} }, $self->extract_str($ptr) );
 		printf( "comment %s\n", $self->extract_str($ptr) );
 	}
 }
 
 sub parse_attributes {
-	my ( $self, $attr_offset ) = @_;
+	my ( $self, $attr_offset, $part_ref ) = @_;
 
 	my $ptr = $self->{offset}{attributes1} + ( 4 * $attr_offset );
 
 	while ( $self->extract_at( $ptr, 'S' ) != 0 ) {
 		my ( $key_ptr, $value_ptr ) = $self->extract_at( $ptr, 'S S' );
-		printf( "- attr %s: %s\n",
-			$self->extract_str($key_ptr),
-			$self->extract_str($value_ptr) );
+		my $key   = $self->extract_str($key_ptr);
+		my $value = $self->extract_str($value_ptr);
+
+		$part_ref->{attributes}{$key} = $value;
+
+		printf( "- attr %s: %s\n", $key, $value );
 		$ptr += 4;
 	}
 }
@@ -184,13 +188,18 @@ sub parse_location {
 }
 
 sub parse_part_details {
-	my ( $self, $detail_ptr, $partno ) = @_;
+	my ( $self, $detail_ptr, $partno, $part_ref ) = @_;
 
 	my $ptr = $self->{offset}{part_index} + $detail_ptr + ( 16 * $partno );
 
 	my ( $dep_time, $arr_time, $dep_platform_ptr, $arr_platform_ptr,
 		$unk, $stop_idx, $num_stops )
 	  = $self->extract_at( $ptr, 'S S S S L S S' );
+
+	$part_ref->{rt_dep_time}     = $dep_time;
+	$part_ref->{rt_dep_Platform} = $self->extract_str($dep_platform_ptr);
+	$part_ref->{rt_arr_time}     = $arr_time;
+	$part_ref->{rt_arr_platform} = $self->extract_str($arr_platform_ptr);
 
 	printf( "- rt dep %d (%s)\n",
 		$dep_time, $self->extract_str($dep_platform_ptr) );
@@ -199,7 +208,7 @@ sub parse_part_details {
 	printf( "- num intermediate stops %d (first %d)\n", $num_stops, $stop_idx );
 
 	for my $i ( 0 .. $num_stops - 1 ) {
-		$self->parse_stop( $stop_idx, $i );
+		push( @{ $part_ref->{via} }, $self->parse_stop( $stop_idx, $i ) );
 	}
 }
 
@@ -214,7 +223,7 @@ sub parse_stop {
 		$rt_unk,             $station_ptr
 	) = $self->extract_at( $ptr, 'S S S S L S S S S L S' );
 
-	$self->parse_station($station_ptr);
+	my ( $stopname, $stopid, $lat, $lon ) = $self->parse_station($station_ptr);
 	printf(
 		"-- sched: arr %d (%s), dep %d (%s), unk %d\n",
 		$s_arr_time, $self->extract_str($s_arr_platform_ptr),
@@ -225,6 +234,21 @@ sub parse_stop {
 		$rt_arr_time, $self->extract_str($rt_arr_platform_ptr),
 		$rt_dep_time, $self->extract_str($rt_dep_platform_ptr), $rt_unk
 	);
+
+	return {
+		stop            => $stopname,
+		stopid          => $stopid,
+		lat             => $lat,
+		lon             => $lon,
+		arr_time        => $s_arr_time,
+		arr_platform    => $self->extract_str($s_arr_platform_ptr),
+		dep_time        => $s_dep_time,
+		dep_platform    => $self->extract_str($s_dep_platform_ptr),
+		rt_arr_time     => $rt_arr_time,
+		rt_arr_platform => $self->extract_str($rt_arr_platform_ptr),
+		rt_dep_time     => $rt_dep_time,
+		rt_dep_platform => $self->extract_str($rt_dep_platform_ptr),
+	};
 }
 
 sub parse_journey {
