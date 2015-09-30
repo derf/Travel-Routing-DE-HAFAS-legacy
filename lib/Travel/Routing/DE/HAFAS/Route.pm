@@ -4,80 +4,50 @@ use strict;
 use warnings;
 use 5.010;
 
-no if $] >= 5.018, warnings => "experimental::smartmatch";
+no if $] >= 5.018, warnings => 'experimental::smartmatch';
 
 use parent 'Class::Accessor';
 
+use Travel::Routing::DE::HAFAS::Route::Part;
+
 our $VERSION = '0.00';
 
-Travel::Routing::DE::HAFAS::Route->mk_ro_accessors(
-	qw(date e_delay delay time train route_end platform info_raw));
+Travel::Routing::DE::HAFAS::Route->mk_ro_accessors(qw(delay service_days));
 
 sub new {
-	my ( $obj, %conf ) = @_;
+	my ( $obj, $info, @parts ) = @_;
 
-	my $ref = \%conf;
+	my $ref = $info;
+
+	for my $part (@parts) {
+		push(
+			@{ $ref->{parts} },
+			Travel::Routing::DE::HAFAS::Route::Part->new( %{$part} )
+		);
+	}
 
 	return bless( $ref, $obj );
 }
 
-sub destination {
+sub parts {
 	my ($self) = @_;
 
-	return $self->{route_end};
-}
-
-sub line {
-	my ($self) = @_;
-
-	return $self->{train};
-}
-
-sub info {
-	my ($self) = @_;
-
-	my $info = $self->info_raw;
-
-	return $info;
+	return @{ $self->{parts} };
 }
 
 sub is_cancelled {
 	my ($self) = @_;
 
-	if ( $self->{delay} and $self->{delay} eq 'cancel' ) {
+	if ( $self->{realtime_status} == 2 ) {
 		return 1;
 	}
-	return 0;
-}
-
-sub messages {
-	my ($self) = @_;
-
-	if ( $self->{messages} ) {
-		return @{ $self->{messages} };
-	}
 	return;
-}
-
-sub origin {
-	my ($self) = @_;
-
-	return $self->{route_end};
 }
 
 sub TO_JSON {
 	my ($self) = @_;
 
 	return { %{$self} };
-}
-
-sub type {
-	my ($self) = @_;
-
-	# $self->{train} is either "TYPE 12345" or "TYPE12345"
-	my ($type) = ( $self->{train} =~ m{ ^ ([A-Z]+) }x );
-
-	return $type;
 }
 
 1;
