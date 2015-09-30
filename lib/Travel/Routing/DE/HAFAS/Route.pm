@@ -1,4 +1,4 @@
-package Travel::Routing::DE::HAFAS::Result;
+package Travel::Routing::DE::HAFAS::Route;
 
 use strict;
 use warnings;
@@ -10,7 +10,7 @@ use parent 'Class::Accessor';
 
 our $VERSION = '0.00';
 
-Travel::Routing::DE::HAFAS::Result->mk_ro_accessors(
+Travel::Routing::DE::HAFAS::Route->mk_ro_accessors(
 	qw(date e_delay delay time train route_end platform info_raw));
 
 sub new {
@@ -86,7 +86,7 @@ __END__
 
 =head1 NAME
 
-Travel::Status::DE::HAFAS::Result - Information about a single
+Travel::Status::DE::HAFAS::Route - Information about a single
 arrival/departure received by Travel::Status::DE::HAFAS
 
 =head1 SYNOPSIS
@@ -118,7 +118,7 @@ version 0.00
 
 =head1 DESCRIPTION
 
-Travel::Status::DE::HAFAS::Result describes a single arrival/departure
+Travel::Status::DE::HAFAS::Route describes a single arrival/departure
 as obtained by Travel::Status::DE::HAFAS.  It contains information about
 the platform, time, route and more.
 
