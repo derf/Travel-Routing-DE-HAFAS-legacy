@@ -19,6 +19,10 @@ sub new {
 
 	my $ref = $info;
 
+	if ( $ref->{delay} == 255 ) {
+		$ref->{delay} = undef;    # probably "no realtime data"
+	}
+
 	for my $part (@parts) {
 		push(
 			@{ $ref->{parts} },

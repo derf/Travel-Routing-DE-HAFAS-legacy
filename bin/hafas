@@ -89,7 +89,7 @@ sub display_connection {
 	printf(
 		"%-5s ab  %-30s %-20s %s\n",
 		$c->departure_time, $c->departure_stop_and_platform,
-		$c->line, $c->destination,
+		$c->line, $c->destination // q{},
 	);
 
 	printf( "%-5s an  %s\n", $c->arrival_time, $c->arrival_stop_and_platform, );
@@ -103,6 +103,9 @@ sub display_routes {
 		my $route = $routes[$i];
 
 		say '# ' . $route->service_days;
+		if ( $route->delay ) {
+			say '# +' . $route->delay;
+		}
 
 		for my $connection ( $route->parts ) {
 			display_connection($connection);
