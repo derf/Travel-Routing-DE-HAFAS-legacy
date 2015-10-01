@@ -19,6 +19,8 @@ Travel::Routing::DE::HAFAS::Route::Part->mk_ro_accessors(
 	  )
 );
 
+# destination: may be undef (e.g. for Fussweg)
+
 sub new {
 	my ( $obj, %conf ) = @_;
 
@@ -26,7 +28,9 @@ sub new {
 
 	$ref->{destination} = $ref->{attributes}{Direction};
 
-	$ref->{attributes}{Category} =~ s{ \s+ $ }{}x;
+	if ( defined $ref->{attributes}{Category} ) {
+		$ref->{attributes}{Category} =~ s{ \s+ $ }{}x;
+	}
 
 	if (    defined $ref->{attributes}{Category}
 		and defined $ref->{attributes}{Number} )
@@ -34,7 +38,7 @@ sub new {
 		$ref->{line}
 		  = $ref->{attributes}{Category} . q{ } . $ref->{attributes}{Number};
 	}
-	else {
+	elsif ( defined $ref->{attributes}{HafasName} ) {
 		$ref->{line} = $ref->{attributes}{HafasName};
 	}
 
@@ -43,11 +47,19 @@ sub new {
 			$ref->{$rt_time} = undef;
 		}
 	}
-	for my $rt_str (qw(rt_arr_platform rt_dep_platform)) {
-		if ( defined $ref->{$rt_str} and $ref->{$rt_str} eq '---' ) {
-			$ref->{$rt_str} = undef;
+	for my $str (qw(arr_platform dep_platform rt_arr_platform rt_dep_platform))
+	{
+		if ( defined $ref->{$str} and $ref->{$str} eq '---' ) {
+			$ref->{$str} = undef;
 		}
 	}
+
+	$ref->{arrival_platform} = $ref->{rt_arr_platform} // $ref->{arr_platform};
+	$ref->{sched_arrival_platform} = $ref->{arr_platform};
+
+	$ref->{departure_platform} = $ref->{rt_dep_platform}
+	  // $ref->{dep_platform};
+	$ref->{sched_departure_platform} = $ref->{dep_platform};
 
 	# TODO DateTime::Format::Strptime and:
 	# {arrival} = rt_arrival // sched_arrival
