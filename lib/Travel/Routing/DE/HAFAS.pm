@@ -197,7 +197,7 @@ sub parse_part_details {
 	  = $self->extract_at( $ptr, 'S S S S L S S' );
 
 	$part_ref->{rt_dep_time}     = $dep_time;
-	$part_ref->{rt_dep_Platform} = $self->extract_str($dep_platform_ptr);
+	$part_ref->{rt_dep_platform} = $self->extract_str($dep_platform_ptr);
 	$part_ref->{rt_arr_time}     = $arr_time;
 	$part_ref->{rt_arr_platform} = $self->extract_str($arr_platform_ptr);
 
@@ -308,10 +308,10 @@ sub parse_journey {
 		);
 
 		printf( "\n- dep %d (%s)\n", $dep_time, $dep_platform );
-		@part{qw{dep_stop dep_stopid dep_lat dep_lon}}
+		@part{qw{departure_stop departure_stopid dep_lat dep_lon}}
 		  = $self->parse_station($dep_station);
 		printf( "- arr %d (%s)\n", $arr_time, $arr_platform );
-		@part{qw{arr_stop arr_stopid arr_lat arr_lon}}
+		@part{qw{arrival_stop arrival_stopid arr_lat arr_lon}}
 		  = $self->parse_station($arr_station);
 		printf( "- line %s\n", $line );
 		$self->parse_attributes( $attrib_ptr, \%part );
@@ -384,6 +384,10 @@ sub parse_header {
 sub results {
 	my ($self) = @_;
 
+	if ( $self->{results} ) {
+		return @{ $self->{results} };
+	}
+
 	$self->parse_header;
 	$self->parse_extensions;
 	$self->parse_details;
@@ -393,7 +397,7 @@ sub results {
 		$self->parse_journey($i);
 	}
 
-	#	say $self->{reply};
+	return @{ $self->{results} };
 }
 
 1;

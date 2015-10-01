@@ -70,69 +70,51 @@ sub show_version {
 	exit 0;
 }
 
-sub display_result {
-	my (@lines) = @_;
-
-	my @line_length;
-
-	if ( not @lines ) {
-		die("Nothing to show\n");
-	}
-
-	for my $i ( 0 .. 4 ) {
-		$line_length[$i] = max map { length( $_->[$i] ) } @lines;
-	}
-
-	for my $line (@lines) {
-
-		my $d = $line->[6];
-		if ( $d->messages ) {
-			print "\n";
-			for my $msg ( $d->messages ) {
-				printf( "# %s\n", $msg );
-			}
-		}
-
-		printf(
-			join( q{  }, ( map { "%-${_}s" } @line_length ) ) . "\n",
-			@{$line}[ 0 .. 4 ]
-		);
-	}
-
-	return;
-}
-
 if ( my $err = $status->errstr ) {
 	say STDERR "Request error: ${err}";
 	exit 2;
 }
 
-$status->results;
-exit 0;
+sub display_connection {
+	my ($c) = @_;
 
-for my $d ( $status->results() ) {
-
-	if ( $ignore_late and $d->e_delay ) {
-		next;
+	if ( $c->delay ) {
+		printf( "# +%d,  Plan: %s -> %s\n",
+			$c->delay, $c->departure_time, $c->arrival_time );
+	}
+	for my $comment ( $c->comments ) {
+		printf( "# %s\n", $comment );
 	}
 
-	push(
-		@output,
-		[
-			$d->time,
-			$d->is_cancelled
-			? 'CANCELED'
-			: ( $d->e_delay ? '+' . $d->e_delay : q{} ),
-			$d->train,
-			$d->route_end,
-			$d->platform,
-			$d->info,
-			$d
-		]
+	printf(
+		"%-5s ab  %-30s %-20s %s\n",
+		$c->departure_time, $c->departure_stop_and_platform,
+		$c->line, $c->destination,
 	);
+
+	printf( "%-5s an  %s\n", $c->arrival_time, $c->arrival_stop_and_platform, );
+	print "\n";
 }
 
-display_result(@output);
+sub display_routes {
+	my (@routes) = @_;
+
+	for my $i ( 0 .. $#routes ) {
+		my $route = $routes[$i];
+
+		say '# ' . $route->service_days;
+
+		for my $connection ( $route->parts ) {
+			display_connection($connection);
+		}
+
+		if ( $i != $#routes ) {
+			print "---------\n\n";
+		}
+	}
+}
+
+display_routes( $status->results );
 
 __END__
 

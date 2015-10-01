@@ -11,58 +11,103 @@ use parent 'Class::Accessor';
 our $VERSION = '0.00';
 
 Travel::Routing::DE::HAFAS::Route::Part->mk_ro_accessors(
-	qw(date e_delay delay time train route_end platform info_raw));
+	qw(arrival_datetime arrival_stop arrival_platform
+	  departure_datetime departure_stop departure_platform
+	  delay destination line has_realtime
+	  sched_arrival_datetime sched_departure_datetime
+	  sched_arrival_platform sched_departure_platform
+	  )
+);
 
 sub new {
 	my ( $obj, %conf ) = @_;
 
 	my $ref = \%conf;
 
+	$ref->{destination} = $ref->{attributes}{Direction};
+
+	$ref->{attributes}{Category} =~ s{ \s+ $ }{}x;
+
+	if (    defined $ref->{attributes}{Category}
+		and defined $ref->{attributes}{Number} )
+	{
+		$ref->{line}
+		  = $ref->{attributes}{Category} . q{ } . $ref->{attributes}{Number};
+	}
+	else {
+		$ref->{line} = $ref->{attributes}{HafasName};
+	}
+
+	for my $rt_time (qw(rt_arr_time rt_dep_time)) {
+		if ( $ref->{$rt_time} == 65535 ) {
+			$ref->{$rt_time} = undef;
+		}
+	}
+	for my $rt_str (qw(rt_arr_platform rt_dep_platform)) {
+		if ( defined $ref->{$rt_str} and $ref->{$rt_str} eq '---' ) {
+			$ref->{$rt_str} = undef;
+		}
+	}
+
+	# TODO DateTime::Format::Strptime and:
+	# {arrival} = rt_arrival // sched_arrival
+	# {departure} = rt_departure // sched_departure
+	# {platform} = rt_platform // sched_platform
+	# {has_realtime} = rt?
+
 	return bless( $ref, $obj );
 }
 
-sub destination {
+sub arrival_date {
 	my ($self) = @_;
-
-	return $self->{route_end};
+	return q{};
 }
 
-sub line {
+sub arrival_time {
 	my ($self) = @_;
-
-	return $self->{train};
+	return $self->{rt_arr_time} // $self->{arr_time};
 }
 
-sub info {
+sub arrival_stop_and_platform {
 	my ($self) = @_;
 
-	my $info = $self->info_raw;
-
-	return $info;
-}
-
-sub is_cancelled {
-	my ($self) = @_;
-
-	if ( $self->{delay} and $self->{delay} eq 'cancel' ) {
-		return 1;
+	if ( $self->{arrival_platform} ) {
+		return
+		  sprintf( '%s: %s', $self->{arrival_stop}, $self->{arrival_platform} );
 	}
-	return 0;
+
+	return $self->{arrival_stop};
 }
 
-sub messages {
+sub departure_date {
+	my ($self) = @_;
+	return q{};
+}
+
+sub departure_time {
+	my ($self) = @_;
+	return $self->{rt_dep_time} // $self->{dep_time};
+}
+
+sub departure_stop_and_platform {
 	my ($self) = @_;
 
-	if ( $self->{messages} ) {
-		return @{ $self->{messages} };
+	if ( $self->{departure_platform} ) {
+		return sprintf( '%s: %s',
+			$self->{departure_stop},
+			$self->{departure_platform} );
+	}
+
+	return $self->{departure_stop};
+}
+
+sub comments {
+	my ($self) = @_;
+
+	if ( exists $self->{comments} ) {
+		return @{ $self->{comments} };
 	}
 	return;
-}
-
-sub origin {
-	my ($self) = @_;
-
-	return $self->{route_end};
 }
 
 sub TO_JSON {
@@ -75,7 +120,7 @@ sub type {
 	my ($self) = @_;
 
 	# $self->{train} is either "TYPE 12345" or "TYPE12345"
-	my ($type) = ( $self->{train} =~ m{ ^ ([A-Z]+) }x );
+	my ($type) = ( $self->{line} =~ m{ ^ ([A-Z]+) }x );
 
 	return $type;
 }
