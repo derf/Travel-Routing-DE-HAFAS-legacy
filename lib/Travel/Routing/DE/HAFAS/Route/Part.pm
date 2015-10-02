@@ -28,6 +28,9 @@ sub new {
 
 	$ref->{destination} = $ref->{attributes}{Direction};
 
+	# Never operate on $base_date_ref directly, always use ->clone first
+	my $base_date_ref = $ref->{base_date_ref};
+
 	if ( defined $ref->{attributes}{Category} ) {
 		$ref->{attributes}{Category} =~ s{ \s+ $ }{}x;
 	}
@@ -54,6 +57,26 @@ sub new {
 		}
 	}
 
+	for my $time (qw(arr_time dep_time rt_arr_time rt_dep_time)) {
+		if ( defined $ref->{$time} ) {
+			my $day_offset = int( $ref->{$time} / 2400 );
+			$ref->{$time} %= 2400;
+			my $hour   = int( $ref->{$time} / 100 );
+			my $minute = $ref->{$time} % 100;
+
+			$ref->{$time} = $base_date_ref->clone->add(
+				days    => $day_offset,
+				hours   => $hour,
+				minutes => $minute,
+			);
+		}
+	}
+
+	$ref->{arrival_datetime}   = $ref->{rt_arr_time} // $ref->{arr_time};
+	$ref->{departure_datetime} = $ref->{rt_dep_time} // $ref->{dep_time};
+	$ref->{sched_arrival_datetime}   = $ref->{arr_time};
+	$ref->{sched_departure_datetime} = $ref->{dep_time};
+
 	$ref->{arrival_platform} = $ref->{rt_arr_platform} // $ref->{arr_platform};
 	$ref->{sched_arrival_platform} = $ref->{arr_platform};
 
@@ -61,10 +84,6 @@ sub new {
 	  // $ref->{dep_platform};
 	$ref->{sched_departure_platform} = $ref->{dep_platform};
 
-	# TODO DateTime::Format::Strptime and:
-	# {arrival} = rt_arrival // sched_arrival
-	# {departure} = rt_departure // sched_departure
-	# {platform} = rt_platform // sched_platform
 	# {has_realtime} = rt?
 
 	return bless( $ref, $obj );
@@ -72,12 +91,14 @@ sub new {
 
 sub arrival_date {
 	my ($self) = @_;
-	return q{};
+
+	return $self->arrival_datetime->strftime('%d.%m.%Y');
 }
 
 sub arrival_time {
 	my ($self) = @_;
-	return $self->{rt_arr_time} // $self->{arr_time};
+
+	return $self->arrival_datetime->strftime('%H:%M');
 }
 
 sub arrival_stop_and_platform {
@@ -93,12 +114,14 @@ sub arrival_stop_and_platform {
 
 sub departure_date {
 	my ($self) = @_;
-	return q{};
+
+	return $self->departure_datetime->strftime('%d.%m.%Y');
 }
 
 sub departure_time {
 	my ($self) = @_;
-	return $self->{rt_dep_time} // $self->{dep_time};
+
+	return $self->departure_datetime->strftime('%H:%M');
 }
 
 sub departure_stop_and_platform {

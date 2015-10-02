@@ -8,6 +8,7 @@ no if $] >= 5.018, warnings => 'experimental::smartmatch';
 
 use parent 'Class::Accessor';
 
+use DateTime;
 use Travel::Routing::DE::HAFAS::Route::Part;
 
 our $VERSION = '0.00';
@@ -19,11 +20,19 @@ sub new {
 
 	my $ref = $info;
 
+	$ref->{base_date} = DateTime->new(
+		year      => 1979,
+		month     => 12,
+		day       => 31,
+		time_zone => 'Europe/Berlin',    # hardcoded for now
+	)->add( days => $ref->{date} );
+
 	if ( $ref->{delay} == 255 ) {
-		$ref->{delay} = undef;    # probably "no realtime data"
+		$ref->{delay} = undef;           # probably "no realtime data"
 	}
 
 	for my $part (@parts) {
+		$part->{base_date_ref} = $ref->{base_date};
 		push(
 			@{ $ref->{parts} },
 			Travel::Routing::DE::HAFAS::Route::Part->new( %{$part} )

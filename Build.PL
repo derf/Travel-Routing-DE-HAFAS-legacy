@@ -20,6 +20,7 @@ Module::Build->new(
 		'perl'            => '5.10.1',
 		'Carp'            => 0,
 		'Class::Accessor' => '0.16',
+		'DateTime'        => 0,
 		'Getopt::Long'    => 0,
 		'IO::Uncompress::Gunzip' => 0,
 		'List::Util'      => 0,

@@ -184,7 +184,13 @@ sub parse_location {
 	);
 
 	printf( "Location name: %s\n", $self->extract_str($name_offset) );
-	return ( $name_offset, $type, $lon, $lat );
+
+	return {
+		name => $self->extract_str($name_offset),
+		type => $type,
+		lon  => $lon / 1_000_000,
+		lat  => $lat / 1_000_000,
+	};
 }
 
 sub parse_part_details {
@@ -325,6 +331,9 @@ sub parse_journey {
 		@{ $self->{results} },
 		Travel::Routing::DE::HAFAS::Route->new(
 			{
+				date            => $self->{base_date},
+				origin          => $self->{origin},
+				destination     => $self->{destination},
 				delay           => $delay,
 				realtime_status => $rts,
 				service_days    => $service_days,
@@ -360,12 +369,13 @@ sub parse_header {
 	$self->{offset}{comments}    = $commentptr;
 	$self->{offset}{extensions}  = $extptr;
 	$self->{num_journeys}        = $numjourneys;
+	$self->{base_date}           = $date;
 
 	printf( "Version: %d (%s)\n", $version, $hversion );
 	printf( "Origin: (%s)\n", $horigin );
-	my ($orig_name_pos) = $self->parse_location($origin);
+	$self->{origin} = $self->parse_location($origin);
 	printf( "Dest: (%s)\n", $hdestination );
-	my ($dest_name_pos) = $self->parse_location($destination);
+	$self->{destination} = $self->parse_location($destination);
 	printf( "num journeys: %d (%s)\n",          $numjourneys, $hnumjourneys );
 	printf( "service days offset: 0x%x (%s)\n", $svcdayptr,   $hsvcdayptr );
 	printf( "string table offset: 0x%x (%s)\n", $strtableptr, $hstrtableptr );
