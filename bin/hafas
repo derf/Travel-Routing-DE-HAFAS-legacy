@@ -80,7 +80,7 @@ sub display_connection {
 
 	if ( $c->delay ) {
 		printf( "# +%d,  Plan: %s -> %s\n",
-			$c->delay, $c->departure_time, $c->arrival_time );
+			$c->delay, $c->sched_departure_time, $c->sched_arrival_time );
 	}
 	for my $comment ( $c->comments ) {
 		printf( "# %s\n", $comment );

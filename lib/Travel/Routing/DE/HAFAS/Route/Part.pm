@@ -13,7 +13,8 @@ our $VERSION = '0.00';
 Travel::Routing::DE::HAFAS::Route::Part->mk_ro_accessors(
 	qw(arrival_datetime arrival_stop arrival_platform
 	  departure_datetime departure_stop departure_platform
-	  delay destination line has_realtime
+	  delay arrival_delay departure_delay
+	  destination line has_realtime
 	  sched_arrival_datetime sched_departure_datetime
 	  sched_arrival_platform sched_departure_platform
 	  )
@@ -72,10 +73,23 @@ sub new {
 		}
 	}
 
+	if ( defined $ref->{rt_arr_time} ) {
+		$ref->{arrival_delay}
+		  = $ref->{rt_arr_time}->subtract_datetime( $ref->{arr_time} )
+		  ->in_units('minutes');
+	}
+	if ( defined $ref->{rt_dep_time} ) {
+		$ref->{departure_delay}
+		  = $ref->{rt_dep_time}->subtract_datetime( $ref->{dep_time} )
+		  ->in_units('minutes');
+	}
+
 	$ref->{arrival_datetime}   = $ref->{rt_arr_time} // $ref->{arr_time};
 	$ref->{departure_datetime} = $ref->{rt_dep_time} // $ref->{dep_time};
 	$ref->{sched_arrival_datetime}   = $ref->{arr_time};
 	$ref->{sched_departure_datetime} = $ref->{dep_time};
+
+	$ref->{delay} = $ref->{departure_delay} // $ref->{arrival_delay};
 
 	$ref->{arrival_platform} = $ref->{rt_arr_platform} // $ref->{arr_platform};
 	$ref->{sched_arrival_platform} = $ref->{arr_platform};
@@ -87,12 +101,6 @@ sub new {
 	# {has_realtime} = rt?
 
 	return bless( $ref, $obj );
-}
-
-sub arrival_date {
-	my ($self) = @_;
-
-	return $self->arrival_datetime->strftime('%d.%m.%Y');
 }
 
 sub arrival_time {
@@ -112,12 +120,6 @@ sub arrival_stop_and_platform {
 	return $self->{arrival_stop};
 }
 
-sub departure_date {
-	my ($self) = @_;
-
-	return $self->departure_datetime->strftime('%d.%m.%Y');
-}
-
 sub departure_time {
 	my ($self) = @_;
 
@@ -134,6 +136,18 @@ sub departure_stop_and_platform {
 	}
 
 	return $self->{departure_stop};
+}
+
+sub sched_arrival_time {
+	my ($self) = @_;
+
+	return $self->sched_arrival_datetime->strftime('%H:%M');
+}
+
+sub sched_departure_time {
+	my ($self) = @_;
+
+	return $self->sched_departure_datetime->strftime('%H:%M');
 }
 
 sub comments {
