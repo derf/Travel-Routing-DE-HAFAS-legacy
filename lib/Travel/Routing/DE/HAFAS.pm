@@ -34,7 +34,9 @@ sub new {
 		confess('You need to specify a station');
 	}
 
-	my $ref = {};
+	my $ref = {
+		developer_mode => $conf{developer_mode},
+	};
 
 	bless( $ref, $obj );
 	$reply
@@ -87,20 +89,22 @@ sub parse_extensions {
 	  = $self->extract_at( $self->{offset}{extensions},
 		'L L S S L S H28 S S S L' );
 
-	printf( "extlen %d\n",               $len );
-	printf( "unk1 %d\n",                 $unk1 );
-	printf( "seqnr %d\n",                $seqnr );
-	printf( "reqid %s\n",                $self->extract_str($reqid_ptr) );
-	printf( "details_ptr %d\n",          $details_ptr );
-	printf( "error %d\n",                $err );
-	printf( "unk2 %s\n",                 $unk2 );
-	printf( "enc %s\n",                  $self->extract_str($enc_ptr) );
-	printf( "??? %s\n",                  $self->extract_str($unk_ptr) );
-	printf( "attr offset/pos %d / %d\n", $attrib_offset, $attrib_pos );
-
 	$self->{offset}{details}     = $details_ptr;
 	$self->{offset}{attributes1} = $attrib_offset;
 	$self->{offset}{attributes2} = $attrib_pos;
+
+	if ( $self->{developer_mode} ) {
+		printf( "extlen %d\n",               $len );
+		printf( "unk1 %d\n",                 $unk1 );
+		printf( "seqnr %d\n",                $seqnr );
+		printf( "reqid %s\n",                $self->extract_str($reqid_ptr) );
+		printf( "details_ptr %d\n",          $details_ptr );
+		printf( "error %d\n",                $err );
+		printf( "unk2 %s\n",                 $unk2 );
+		printf( "enc %s\n",                  $self->extract_str($enc_ptr) );
+		printf( "??? %s\n",                  $self->extract_str($unk_ptr) );
+		printf( "attr offset/pos %d / %d\n", $attrib_offset, $attrib_pos );
+	}
 }
 
 sub parse_details {
@@ -112,17 +116,19 @@ sub parse_details {
 		$stop_size, $stop_off )
 	  = $self->extract_at( $detail_ptr, 'S S S S S S S' );
 
-	printf( "detailhdr version %d\n",   $version );
-	printf( "detailhdr unk %d\n",       $unk );
-	printf( "detailhdr index ptr %d\n", $detail_index_off );
-	printf( "detailhdr part ptr %d\n",  $detail_part_off );
-	printf( "detailhdr part size %d\n", $detail_part_size );
-	printf( "detailhdr stop size %d\n", $stop_size );
-	printf( "detailhdr stop ptr %d\n",  $stop_off );
-
 	$self->{offset}{detail_index} = $detail_ptr + $detail_index_off;
 	$self->{offset}{part_index}   = $detail_ptr + $detail_part_off;
 	$self->{offset}{stop_index}   = $detail_ptr + $stop_off;
+
+	if ( $self->{developer_mode} ) {
+		printf( "detailhdr version %d\n",   $version );
+		printf( "detailhdr unk %d\n",       $unk );
+		printf( "detailhdr index ptr %d\n", $detail_index_off );
+		printf( "detailhdr part ptr %d\n",  $detail_part_off );
+		printf( "detailhdr part size %d\n", $detail_part_size );
+		printf( "detailhdr stop size %d\n", $stop_size );
+		printf( "detailhdr stop ptr %d\n",  $stop_off );
+	}
 }
 
 sub parse_station {
@@ -134,9 +140,11 @@ sub parse_station {
 	  = $self->extract_at( $ptr, 'S L L L' );
 	my $station_name = $self->extract_str($name_ptr);
 
-	printf( "- name %s\n",     $station_name );
-	printf( "- id %d\n",       $stopid );
-	printf( "- pos %f / %f\n", $lon / 1_000_000, $lat / 1_000_000 );
+	if ( $self->{developer_mode} ) {
+		printf( "- name %s\n",     $station_name );
+		printf( "- id %d\n",       $stopid );
+		printf( "- pos %f / %f\n", $lon / 1_000_000, $lat / 1_000_000 );
+	}
 
 	return ( $station_name, $stopid, $lat / 1_000_000, $lon / 1_000_000 );
 }
@@ -146,12 +154,18 @@ sub parse_comments {
 
 	my $num_comments
 	  = $self->extract_at( $self->{offset}{comments} + $com_offset, 'S' );
+
 	my @comment_ptrs
 	  = $self->extract_at( $self->{offset}{comments} + $com_offset + 2,
 		'S' x $num_comments );
+
 	for my $ptr (@comment_ptrs) {
+
 		push( @{ $part_ref->{comments} }, $self->extract_str($ptr) );
-		printf( "comment %s\n", $self->extract_str($ptr) );
+
+		if ( $self->{developer_mode} ) {
+			printf( "comment %s\n", $self->extract_str($ptr) );
+		}
 	}
 }
 
@@ -167,8 +181,11 @@ sub parse_attributes {
 
 		$part_ref->{attributes}{$key} = $value;
 
-		printf( "- attr %s: %s\n", $key, $value );
 		$ptr += 4;
+
+		if ( $self->{developer_mode} ) {
+			printf( "- attr %s: %s\n", $key, $value );
+		}
 	}
 }
 
@@ -176,14 +193,16 @@ sub parse_location {
 	my ( $self, $data ) = @_;
 
 	my ( $name_offset, $unk, $type, $lon, $lat ) = unpack( 'S S S L L', $data );
-	printf(
-		"Location: pos %d, unk %d, type %d, lon/lat %f %f\n",
-		$name_offset, $unk, $type,
-		$lon / 1_000_000,
-		$lat / 1_000_000
-	);
 
-	printf( "Location name: %s\n", $self->extract_str($name_offset) );
+	if ( $self->{developer_mode} ) {
+		printf(
+			"Location: pos %d, unk %d, type %d, lon/lat %f %f\n",
+			$name_offset, $unk, $type,
+			$lon / 1_000_000,
+			$lat / 1_000_000
+		);
+		printf( "Location name: %s\n", $self->extract_str($name_offset) );
+	}
 
 	return {
 		name => $self->extract_str($name_offset),
@@ -207,14 +226,17 @@ sub parse_part_details {
 	$part_ref->{rt_arr_time}     = $arr_time;
 	$part_ref->{rt_arr_platform} = $self->extract_str($arr_platform_ptr);
 
-	printf( "- rt dep %d (%s)\n",
-		$dep_time, $self->extract_str($dep_platform_ptr) );
-	printf( "- rt arr %d (%s)\n",
-		$arr_time, $self->extract_str($arr_platform_ptr) );
-	printf( "- num intermediate stops %d (first %d)\n", $num_stops, $stop_idx );
-
 	for my $i ( 0 .. $num_stops - 1 ) {
 		push( @{ $part_ref->{via} }, $self->parse_stop( $stop_idx, $i ) );
+	}
+
+	if ( $self->{developer_mode} ) {
+		printf( "- rt dep %d (%s)\n",
+			$dep_time, $self->extract_str($dep_platform_ptr) );
+		printf( "- rt arr %d (%s)\n",
+			$arr_time, $self->extract_str($arr_platform_ptr) );
+		printf( "- num intermediate stops %d (first %d)\n",
+			$num_stops, $stop_idx );
 	}
 }
 
@@ -230,16 +252,19 @@ sub parse_stop {
 	) = $self->extract_at( $ptr, 'S S S S L S S S S L S' );
 
 	my ( $stopname, $stopid, $lat, $lon ) = $self->parse_station($station_ptr);
-	printf(
-		"-- sched: arr %d (%s), dep %d (%s), unk %d\n",
-		$s_arr_time, $self->extract_str($s_arr_platform_ptr),
-		$s_dep_time, $self->extract_str($s_dep_platform_ptr), $s_unk
-	);
-	printf(
-		"-- rt: arr %d (%s), dep %d (%s), unk %d\n",
-		$rt_arr_time, $self->extract_str($rt_arr_platform_ptr),
-		$rt_dep_time, $self->extract_str($rt_dep_platform_ptr), $rt_unk
-	);
+
+	if ( $self->{developer_mode} ) {
+		printf(
+			"-- sched: arr %d (%s), dep %d (%s), unk %d\n",
+			$s_arr_time, $self->extract_str($s_arr_platform_ptr),
+			$s_dep_time, $self->extract_str($s_dep_platform_ptr), $s_unk
+		);
+		printf(
+			"-- rt: arr %d (%s), dep %d (%s), unk %d\n",
+			$rt_arr_time, $self->extract_str($rt_arr_platform_ptr),
+			$rt_dep_time, $self->extract_str($rt_dep_platform_ptr), $rt_unk
+		);
+	}
 
 	return {
 		stop            => $stopname,
@@ -266,10 +291,6 @@ sub parse_journey {
 	my ( $service_days_offset, $parts_offset, $num_parts, $num_changes, $unk )
 	  = $self->extract_at( $ptr, 'S L S S S' );
 
-	printf( "Journey %d: off 0x%x/0x%x, %d parts, %d changes, unk %d\n",
-		$num + 1, $service_days_offset, $parts_offset, $num_parts,
-		$num_changes, $unk );
-
 	$self->{offset}{journeys}[$num]{service_days}
 	  = $self->{offset}{servicedays} + $service_days_offset;
 	$self->{offset}{journeys}[$num]{parts} = $parts_offset + 0x4a;
@@ -279,16 +300,22 @@ sub parse_journey {
 	my $svcd_ptr     = $self->{offset}{journeys}[$num]{service_days};
 	my $desc_ptr     = $self->extract_at( $svcd_ptr, 'S' );
 	my $service_days = $self->extract_str($desc_ptr);
-	printf( "Service days: %s\n", $service_days );
 
 	my $detail_ptr
 	  = $self->extract_at( $self->{offset}{detail_index} + ( 2 * $num ), 'S' );
-	printf( "detail ptr %d\n", $detail_ptr );
 
 	my ( $rts, $delay )
 	  = $self->extract_at( $self->{offset}{details} + $detail_ptr, 'S S' );
-	printf( "rts %d\n",   $rts );     # 2 == cancelled
-	printf( "delay %d\n", $delay );
+
+	if ( $self->{developer_mode} ) {
+		printf( "Journey %d: off 0x%x/0x%x, %d parts, %d changes, unk %d\n",
+			$num + 1, $service_days_offset, $parts_offset, $num_parts,
+			$num_changes, $unk );
+		printf( "Service days: %s\n", $service_days );
+		printf( "detail ptr %d\n",    $detail_ptr );
+		printf( "rts %d\n",           $rts );            # 2 == cancelled
+		printf( "delay %d\n",         $delay );
+	}
 
 	for my $i ( 0 .. $self->{journeys}[$num]{num_parts} - 1 ) {
 		my (
@@ -313,13 +340,17 @@ sub parse_journey {
 			type         => $type,
 		);
 
-		printf( "\n- dep %d (%s)\n", $dep_time, $dep_platform );
 		@part{qw{departure_stop departure_stopid dep_lat dep_lon}}
 		  = $self->parse_station($dep_station);
-		printf( "- arr %d (%s)\n", $arr_time, $arr_platform );
 		@part{qw{arrival_stop arrival_stopid arr_lat arr_lon}}
 		  = $self->parse_station($arr_station);
-		printf( "- line %s\n", $line );
+
+		if ( $self->{developer_mode} ) {
+			printf( "- dep %d (%s)\n", $dep_time, $dep_platform );
+			printf( "- arr %d (%s)\n", $arr_time, $arr_platform );
+			printf( "- line %s\n",     $line );
+		}
+
 		$self->parse_attributes( $attrib_ptr, \%part );
 		$self->parse_comments( $comments_ptr, \%part );
 		$self->parse_part_details( $detail_ptr, $i, \%part );
@@ -361,8 +392,6 @@ sub parse_header {
 		$hunk4,      $hextptr
 	) = unpack( 'H4 H28 H28 H4 H8 H8 H4 H4 H4 H16 H8 H8 H16 H8', $data );
 
-	say unpack( 'H' . ( 2 * 0x4a ), $data );
-
 	$self->{offset}{servicedays} = $svcdayptr;
 	$self->{offset}{strtable}    = $strtableptr;
 	$self->{offset}{stations}    = $stationptr;
@@ -371,22 +400,28 @@ sub parse_header {
 	$self->{num_journeys}        = $numjourneys;
 	$self->{base_date}           = $date;
 
-	printf( "Version: %d (%s)\n", $version, $hversion );
-	printf( "Origin: (%s)\n", $horigin );
-	$self->{origin} = $self->parse_location($origin);
-	printf( "Dest: (%s)\n", $hdestination );
+	$self->{origin}      = $self->parse_location($origin);
 	$self->{destination} = $self->parse_location($destination);
-	printf( "num journeys: %d (%s)\n",          $numjourneys, $hnumjourneys );
-	printf( "service days offset: 0x%x (%s)\n", $svcdayptr,   $hsvcdayptr );
-	printf( "string table offset: 0x%x (%s)\n", $strtableptr, $hstrtableptr );
-	printf( "date: %d (%s)\n",                  $date,        $hdate );
-	printf( "unk1: %d (%s)\n",                  $unk1,        $hunk1 );
-	printf( "unk2: %d (%s)\n",                  $unk2,        $hunk2 );
-	printf( "unk3: (%s)\n",                     $hunk3 );
-	printf( "stations offset: 0x%x (%s)\n",     $stationptr,  $hstationptr );
-	printf( "comments offset: 0x%x (%s)\n",     $commentptr,  $hcommentptr );
-	printf( "unk4: (%s)\n",                     $hunk4 );
-	printf( "extension offset: 0x%x (%s)\n",    $extptr,      $hextptr );
+
+	if ( $self->{developer_mode} ) {
+		say unpack( 'H' . ( 2 * 0x4a ), $data );
+
+		printf( "Version: %d (%s)\n",      $version,     $hversion );
+		printf( "Origin: (%s)\n",          $horigin );
+		printf( "Dest: (%s)\n",            $hdestination );
+		printf( "num journeys: %d (%s)\n", $numjourneys, $hnumjourneys );
+		printf( "service days offset: 0x%x (%s)\n", $svcdayptr, $hsvcdayptr );
+		printf( "string table offset: 0x%x (%s)\n",
+			$strtableptr, $hstrtableptr );
+		printf( "date: %d (%s)\n",               $date,       $hdate );
+		printf( "unk1: %d (%s)\n",               $unk1,       $hunk1 );
+		printf( "unk2: %d (%s)\n",               $unk2,       $hunk2 );
+		printf( "unk3: (%s)\n",                  $hunk3 );
+		printf( "stations offset: 0x%x (%s)\n",  $stationptr, $hstationptr );
+		printf( "comments offset: 0x%x (%s)\n",  $commentptr, $hcommentptr );
+		printf( "unk4: (%s)\n",                  $hunk4 );
+		printf( "extension offset: 0x%x (%s)\n", $extptr,     $hextptr );
+	}
 
 	return;
 }
@@ -408,7 +443,6 @@ sub results {
 	$self->parse_details;
 
 	for my $i ( 0 .. $self->{num_journeys} - 1 ) {
-		print "\n";
 		$self->parse_journey($i);
 	}
 

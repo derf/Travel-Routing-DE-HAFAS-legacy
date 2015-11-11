@@ -16,6 +16,7 @@ my $arrivals    = 0;
 my $ignore_late = 0;
 my $types       = q{};
 my $language;
+my $devmode;
 
 my @output;
 
@@ -30,6 +31,7 @@ GetOptions(
 	'm|mot=s'       => \$types,
 	't|time=s'      => \$time,
 	'V|version'     => \&show_version,
+	'devmode'       => \$devmode,
 
 ) or show_help(1);
 
@@ -46,6 +48,7 @@ my ( $from, $to ) = @ARGV;
 
 my $status = Travel::Routing::DE::HAFAS->new(
 	date     => $date,
+	developer_mode => $devmode,
 	language => $language,
 	mot      => \%train_type,
 	from     => $from,
