@@ -399,6 +399,11 @@ sub results {
 	}
 
 	$self->parse_header;
+
+	if ( $self->{num_journeys} == 0 ) {
+		return;
+	}
+
 	$self->parse_extensions;
 	$self->parse_details;
 
