@@ -1,0 +1,7 @@
+#!/bin/sh
+
+JSON="$1"
+
+CHECKSUM="$(echo -n "${JSON}bdI8UVj40K5fvxwf" | md5sum - | cut -d ' ' -f 1)"
+
+curl -s --data-binary "${JSON}" "https://reiseauskunft.bahn.de/bin/mgate.exe?checksum=${CHECKSUM}"
